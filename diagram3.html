@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Selah - Diagram</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  ::-webkit-scrollbar { display: none; }
+  * { -ms-overflow-style: none; scrollbar-width: none; }
+  :root {
+    --bg: #F5F2EB; --text-dark: #322115; --text-muted: #8C7B6E; --card-border: #E2DFD8;
+    --c-self: #4A3728; --c-relationships: #7B5EA7; --c-work: #2E6B4F; --c-health: #C0392B; --c-mind: #1A6B8A;
+    --c-thought: #A89880; --c-feeling: #C87C5A;
+  }
+  html, body { height: 100%; width: 100%; background: var(--bg); font-family: 'Inter', sans-serif; color: var(--text-dark); overflow: hidden; }
+  body::before { content: ''; position: fixed; inset: 0; background-image: radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px); background-size: 24px 24px; pointer-events: none; z-index: 0; }
+  nav { display: flex; align-items: center; justify-content: space-between; padding: 18px 48px; background: rgba(245,242,235,0.92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); position: fixed; top: 0; left: 0; right: 0; z-index: 100; border-bottom: 1px solid rgba(0,0,0,0.05); }
+  .logo { display: flex; align-items: center; gap: 12px; font-size: 19px; font-weight: 400; color: var(--text-dark); text-decoration: none; }
+  .logo img { width: 34px; height: 34px; object-fit: contain; mix-blend-mode: multiply; }
+  .nav-right { display: flex; align-items: center; gap: 28px; }
+  .sync-btn { background: var(--text-dark); color: white; border: none; border-radius: 100px; padding: 8px 20px; font-size: 13px; font-family: 'Inter', sans-serif; cursor: pointer; transition: opacity 0.2s; }
+  .sync-btn:hover { opacity: 0.8; }
+  .nav-links { display: flex; gap: 28px; list-style: none; }
+  .nav-links a { font-size: 14.5px; color: var(--text-dark); text-decoration: none; opacity: 0.6; transition: opacity 0.15s; }
+  .nav-links a:hover, .nav-links a.active { opacity: 1; font-weight: 500; }
+  #canvas { position: fixed; inset: 0; top: 64px; z-index: 1; cursor: grab; }
+  #canvas:active { cursor: grabbing; }
+  #loader { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); display: flex; flex-direction: column; align-items: center; gap: 14px; z-index: 50; }
+  #loader img { width: 44px; height: 44px; mix-blend-mode: multiply; animation: spin 3s linear infinite; }
+  #loader p { font-size: 14px; color: var(--text-muted); letter-spacing: 0.02em; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #tooltip { position: fixed; z-index: 200; background: var(--text-dark); color: #F5F2EB; font-size: 12.5px; line-height: 1.6; padding: 10px 15px; border-radius: 10px; max-width: 280px; pointer-events: none; opacity: 0; transition: opacity 0.12s; font-family: 'Inter', sans-serif; }
+  #legend { position: fixed; bottom: 28px; left: 44px; display: none; flex-direction: column; gap: 7px; z-index: 50; pointer-events: none; }
+  .li { display: flex; align-items: center; gap: 9px; font-size: 11px; color: var(--text-muted); letter-spacing: 0.07em; text-transform: uppercase; }
+  .li-dot { width: 9px; height: 9px; border-radius: 50%; }
+  .li-sep { width: 28px; height: 1px; background: var(--card-border); margin: 3px 0; }
+  #controls { position: fixed; bottom: 28px; right: 44px; display: none; flex-direction: column; gap: 6px; z-index: 50; }
+  .ctrl-btn { width: 34px; height: 34px; background: white; border: 1px solid var(--card-border); border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--text-muted); transition: background 0.15s, color 0.15s; font-family: 'Inter', sans-serif; }
+  .ctrl-btn:hover { background: var(--bg); color: var(--text-dark); }
+</style>
+</head>
+<body>
+<nav>
+  <a class="logo" href="landingPage.html"><img src="logo" alt="Selah">Selah</a>
+  <div class="nav-right">
+    <button class="sync-btn" id="sync-btn" onclick="syncToVault()">Commit to Vault</button>
+    <ul class="nav-links">
+      <li><a href="plugins.html">Plugins</a></li>
+      <li><a href="diagram.html" class="active">Diagram</a></li>
+      <li><a href="notes.html">Notes</a></li>
+      <li><a href="analyze.html">Analyze</a></li>
+    </ul>
+  </div>
+</nav>
+<div id="canvas"><div id="loader"><img src="logo" alt=""><p id="loader-msg">Reading your conversation…</p></div></div>
+<div id="tooltip"></div>
+<div id="legend">
+  <div class="li"><div class="li-dot" style="background:var(--c-self)"></div>Self</div>
+  <div class="li"><div class="li-dot" style="background:var(--c-relationships)"></div>Relationships</div>
+  <div class="li"><div class="li-dot" style="background:var(--c-work)"></div>Work / Purpose</div>
+  <div class="li"><div class="li-dot" style="background:var(--c-health)"></div>Health</div>
+  <div class="li"><div class="li-dot" style="background:var(--c-mind)"></div>Mind</div>
+  <div class="li-sep"></div>
+  <div class="li"><div class="li-dot" style="background:var(--c-thought);opacity:0.7"></div>Thought</div>
+  <div class="li"><div class="li-dot" style="background:var(--c-feeling);opacity:0.7"></div>Feeling</div>
+  <div class="li"><div class="li-dot" style="background:#C8960A"></div>Action</div>
+</div>
+<div id="controls">
+  <button class="ctrl-btn" id="btn-fit">⊡</button>
+  <button class="ctrl-btn" id="btn-in">+</button>
+  <button class="ctrl-btn" id="btn-out">−</button>
+</div>
+
+<script>
+const PILLARS = [
+  { id:'Self',          group:'pillar', color:'#4A3728', r:22 },
+  { id:'Relationships', group:'pillar', color:'#7B5EA7', r:22 },
+  { id:'Work',          group:'pillar', color:'#2E6B4F', r:22 },
+  { id:'Health',        group:'pillar', color:'#C0392B', r:22 },
+  { id:'Mind',          group:'pillar', color:'#1A6B8A', r:22 },
+];
+const PILLAR_IDS   = new Set(PILLARS.map(p => p.id));
+const PILLAR_COLOR = { Self:'#4A3728', Relationships:'#7B5EA7', Work:'#2E6B4F', Health:'#C0392B', Mind:'#1A6B8A' };
+
+// ── Guaranteed short label — strips filler, keeps ≤3 content words ──
+const FILLER = new Set(['i','am','a','an','the','is','it','of','to','my','me','we','you','your',
+  'that','this','was','were','be','been','have','has','had','do','did','does','can','could',
+  'would','should','will','just','so','and','but','or','not','no','in','on','at','for','with',
+  'about','its','like','hii','hi','hello','hey','tried','trying','try','also','very','really',
+  'quite','there','here','says','say','feel','feels','felt','think','thinks','know','want','wants',
+  'going','went','go','get','got','getting','what','how','why','who','when','name']);
+
+function makeLabel(phrase) {
+  if (!phrase) return '?';
+  const words = phrase.trim().split(/\s+/);
+  if (words.length <= 3) return phrase.trim();
+  const content = words.filter(w => !FILLER.has(w.toLowerCase()));
+  if (content.length >= 2) return content.slice(0, 3).join(' ');
+  return words.slice(0, 3).join(' ');
+}
+
+function loadChat() {
+  try {
+    const db = JSON.parse(localStorage.getItem('selah_memory'));
+    if (!db?.activeChatId) return null;
+    const chat = db.chats.find(c => c.id === db.activeChatId);
+    return chat?.messages?.length ? chat : null;
+  } catch { return null; }
+}
+
+let currentGraph = null;
+
+async function init() {
+  const chat = loadChat();
+  if (!chat) {
+    setLoader(`<p style="color:var(--text-dark);max-width:280px;line-height:1.6;text-align:center;">No active chat.<br><a href="landingPage.html" style="color:var(--text-dark);text-decoration:underline;text-underline-offset:3px;">Go talk to Selah first →</a></p>`);
+    return;
+  }
+
+  const userMessages = chat.messages.filter(m => m.role === 'user').map(m => m.content.trim());
+  const numbered = userMessages.map((m, i) => `${i+1}. "${m}"`).join('\n');
+  setLoaderText('Mapping your inner world…');
+
+  const prompt = `You extract psychological concepts from a person's words and map them to life areas.
+
+USER SAID (only source — never invent):
+${numbered}
+
+PILLARS (already exist — do NOT add to nodes): Self, Relationships, Work, Health, Mind
+
+TASK: 5-9 nodes from user words only.
+- "id": 2-4 word concept from user's words. Examples: "bad person", "tired losing", "wanna win", "smoking addiction". NEVER a full sentence.
+- "fullText": exact user sentence this came from
+- "type": "thought" | "feeling" | "action"
+- "pillar": Self|Relationships|Work|Health|Mind
+  Self=identity  Mind=emotions/mental  Health=body/addiction  Work=goals/winning  Relationships=people
+
+DEDUPLICATION: merge sentences expressing same idea into ONE node.
+EXTRA LINKS: max 2, only when one node directly causes another.
+
+OUTPUT ONLY JSON no markdown:
+{"nodes":[{"id":"short label","fullText":"original sentence","type":"thought|feeling|action","pillar":"pillar name"}],"extraLinks":[{"source":"id","target":"id","label":"verb"}]}`;
+
+  try {
+    const res = await fetch('http://localhost:11434/api/generate', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model:'llama3.2:1b', prompt, stream:false, format:'json', options:{ temperature:0.0, num_predict:900 } })
+    });
+    if (!res.ok) throw new Error('Ollama offline');
+    const data = await res.json();
+    const ai = JSON.parse(data.response.replace(/```json/gi,'').replace(/```/g,'').trim());
+    if (!ai.nodes?.length) throw new Error('No nodes');
+
+    // Dedup
+    const seenIds = new Map();
+    const deduped = [];
+    (ai.nodes||[]).forEach(n => {
+      const k = n.id.trim().toLowerCase();
+      if (!seenIds.has(k)) { seenIds.set(k,true); deduped.push(n); }
+    });
+
+    const aiNodes = deduped.map(n => ({
+      id:       makeLabel(n.id),        // SHORT — guaranteed
+      fullText: n.fullText || n.id,     // full original → tooltip
+      group:    'thought',
+      type:     n.type || 'thought',
+      pillar:   n.pillar,
+      color:    n.type==='action' ? '#C8960A' : n.type==='feeling' ? '#C87C5A' : '#A89880',
+      r:        n.type==='action' ? 10 : 7,
+    }));
+
+    const nodes  = [...PILLARS.map(p=>({...p})), ...aiNodes];
+    const nodeIds = new Set(nodes.map(n => n.id));
+    const idMap   = new Map(); deduped.forEach(n => idMap.set(n.id.trim(), makeLabel(n.id)));
+
+    const links = []; const seen = new Set();
+    const addLink = (src,tgt,label,isPillarLink) => {
+      if (!nodeIds.has(src)||!nodeIds.has(tgt)||src===tgt) return;
+      const k=[src,tgt].sort().join('|||'); if(seen.has(k)) return; seen.add(k);
+      links.push({source:src,target:tgt,label,isPillarLink});
+    };
+    aiNodes.forEach(n => { if(PILLAR_IDS.has(n.pillar)) addLink(n.id,n.pillar,'',true); });
+    let ec=0;
+    (ai.extraLinks||[]).forEach(l => {
+      if(ec>=2) return;
+      const src=idMap.get(l.source?.trim())||l.source?.trim();
+      const tgt=idMap.get(l.target?.trim())||l.target?.trim();
+      if(!nodeIds.has(src)||!nodeIds.has(tgt)) return;
+      addLink(src,tgt,l.label||'',false); ec++;
+    });
+
+    currentGraph = { nodes, links };
+    hideLoader();
+    document.getElementById('legend').style.display   = 'flex';
+    document.getElementById('controls').style.display = 'flex';
+    drawGraph(currentGraph);
+  } catch(err) {
+    console.error(err);
+    setLoader(`<p style="color:var(--text-dark);">Couldn't build map.</p><p style="font-size:13px;opacity:0.6;margin-top:8px;">Check Ollama is running → refresh.</p>`);
+  }
+}
+
+function drawGraph(graph) {
+  const W=window.innerWidth, H=window.innerHeight-64;
+  d3.select('#canvas').selectAll('svg').remove();
+
+  const zoom = d3.zoom().scaleExtent([0.2,6]).on('zoom', e=>g.attr('transform',e.transform));
+  const svg  = d3.select('#canvas').append('svg').attr('width',W).attr('height',H).call(zoom);
+  const g    = svg.append('g');
+  const cx=W/2, cy=H/2, ringR=Math.min(W,H)*0.26;
+
+  // Pentagon pre-position + hard pin
+  graph.nodes.forEach(n => {
+    if (n.group!=='pillar') return;
+    const angle = (2*Math.PI*PILLARS.findIndex(p=>p.id===n.id))/PILLARS.length - Math.PI/2;
+    n.x=cx+ringR*Math.cos(angle); n.y=cy+ringR*Math.sin(angle);
+    n.fx=n.x; n.fy=n.y;
+  });
+
+  // ── TIGHT PHYSICS: short links, weak repulsion, strong center ──
+  const sim = d3.forceSimulation(graph.nodes)
+    .force('link', d3.forceLink(graph.links).id(d=>d.id)
+      .distance(d => d.isPillarLink ? 85 : 55)
+      .strength(d => d.isPillarLink ? 1.2 : 0.5))
+    .force('charge', d3.forceManyBody().strength(d => d.group==='pillar' ? -200 : -60))
+    .force('collide', d3.forceCollide().radius(d => d.r+24))
+    .force('center', d3.forceCenter(cx,cy).strength(0.1));
+
+  // Soft-unpin pillars after settle
+  setTimeout(() => {
+    graph.nodes.forEach(n => { if(n.group==='pillar'){n.fx=null;n.fy=null;} });
+    sim.alpha(0.05).restart();
+  }, 2200);
+
+  // Links
+  const linkEl = g.append('g').selectAll('line').data(graph.links).join('line')
+    .attr('stroke', d => d.isPillarLink ? PILLAR_COLOR[typeof d.target==='object'?d.target.id:d.target]||'#D8D3CC' : '#C8C3BB')
+    .attr('stroke-width',   d => d.isPillarLink ? 1.2 : 0.8)
+    .attr('stroke-opacity', d => d.isPillarLink ? 0.5  : 0.35)
+    .attr('stroke-dasharray', d => d.isPillarLink ? 'none' : '4 3');
+
+  const linkLabelEl = g.append('g').selectAll('text')
+    .data(graph.links.filter(l=>!l.isPillarLink&&l.label)).join('text')
+    .text(d=>d.label).attr('font-size','9px').attr('font-family','Inter, sans-serif')
+    .attr('fill','#B0A898').attr('text-anchor','middle').style('pointer-events','none');
+
+  // Nodes
+  const nodeEl = g.append('g').selectAll('g').data(graph.nodes).join('g').call(drag(sim));
+
+  nodeEl.filter(d=>d.group==='pillar')
+    .append('circle').attr('r',d=>d.r+10).attr('fill',d=>d.color).attr('opacity',0.08);
+  nodeEl.filter(d=>d.type==='action')
+    .append('circle').attr('r',d=>d.r+8).attr('fill','#C8960A').attr('opacity',0.15);
+
+  // Main circle — always last appended
+  nodeEl.append('circle')
+    .attr('r',d=>d.r).attr('fill',d=>d.color)
+    .attr('stroke','#F5F2EB').attr('stroke-width',d=>d.group==='pillar'?3:2)
+    .style('cursor','pointer')
+    .style('filter',d=>{
+      if(d.group==='pillar') return `drop-shadow(0 2px 8px ${d.color}55)`;
+      if(d.type==='action')  return `drop-shadow(0 0 6px #C8960A44)`;
+      return 'none';
+    });
+
+  // Labels — short on node, full sentence on hover
+  nodeEl.append('text')
+    .attr('text-anchor','middle').attr('font-family','Inter, sans-serif')
+    .attr('font-size',d=>d.group==='pillar'?'13px':'11px')
+    .attr('font-weight',d=>(d.group==='pillar'||d.type==='action')?'500':'400')
+    .attr('fill',d=>d.group==='pillar'?d.color:d.type==='action'?'#7A5500':'#6B5E52')
+    .attr('letter-spacing',d=>d.group==='pillar'?'0.04em':'0')
+    .style('pointer-events','none')
+    .each(function(d) {
+      const el=d3.select(this);
+      const maxChars = d.group==='pillar' ? 999 : 11;
+      const words=d.id.split(' '); const lines=[]; let cur='';
+      words.forEach(w=>{
+        const t=cur?cur+' '+w:w;
+        if(t.length>maxChars&&cur){lines.push(cur);cur=w;}else cur=t;
+      });
+      if(cur) lines.push(cur);
+      const lh=13;
+      if(lines.length===1){ el.attr('y',-(d.r+8)).text(lines[0]); }
+      else {
+        el.attr('y',-(d.r+8)-(lines.length-1)*lh);
+        lines.forEach((line,i)=>el.append('tspan').attr('x',0).attr('dy',i===0?'0':`${lh}px`).text(line));
+      }
+    });
+
+  // Hover
+  const tooltip=document.getElementById('tooltip');
+  const connectedTo=d=>{
+    const s=new Set([d.id]);
+    graph.links.forEach(l=>{
+      const sid=typeof l.source==='object'?l.source.id:l.source;
+      const tid=typeof l.target==='object'?l.target.id:l.target;
+      if(sid===d.id)s.add(tid); if(tid===d.id)s.add(sid);
+    }); return s;
+  };
+
+  nodeEl
+    .on('mouseover', function(event,d){
+      const conn=connectedTo(d);
+      nodeEl.transition().duration(150).style('opacity',o=>conn.has(o.id)?1:0.08);
+      linkEl.transition().duration(150).style('opacity',l=>{
+        const s=typeof l.source==='object'?l.source.id:l.source;
+        const t=typeof l.target==='object'?l.target.id:l.target;
+        return(s===d.id||t===d.id)?0.9:0.02;
+      });
+      linkLabelEl.transition().duration(150).style('opacity',l=>{
+        const s=typeof l.source==='object'?l.source.id:l.source;
+        const t=typeof l.target==='object'?l.target.id:l.target;
+        return(s===d.id||t===d.id)?1:0;
+      });
+      d3.select(this).selectAll('circle').filter((_,i,ns)=>i===ns.length-1)
+        .transition().duration(150).attr('r',d.r*(d.group==='pillar'?1.25:1.8));
+
+      // Tooltip: full original sentence for thought/feeling/action
+      const tip = d.group!=='pillar'
+        ? (d.fullText||d.id)
+        : `${d.id} · ${graph.links.filter(l=>{const s=typeof l.source==='object'?l.source.id:l.source;const t=typeof l.target==='object'?l.target.id:l.target;return s===d.id||t===d.id;}).length} connections`;
+      tooltip.textContent=tip;
+      tooltip.style.opacity='1';
+      tooltip.style.left=(event.clientX+16)+'px';
+      tooltip.style.top=(event.clientY-10)+'px';
+    })
+    .on('mousemove',e=>{ tooltip.style.left=(e.clientX+16)+'px'; tooltip.style.top=(e.clientY-10)+'px'; })
+    .on('mouseout',function(_,d){
+      nodeEl.transition().duration(150).style('opacity',1);
+      linkEl.transition().duration(150).style('opacity',l=>l.isPillarLink?0.5:0.35);
+      linkLabelEl.transition().duration(150).style('opacity',1);
+      d3.select(this).selectAll('circle').filter((_,i,ns)=>i===ns.length-1)
+        .transition().duration(150).attr('r',d.r);
+      tooltip.style.opacity='0';
+    });
+
+  sim.on('tick',()=>{
+    linkEl.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    linkLabelEl.attr('x',d=>(d.source.x+d.target.x)/2).attr('y',d=>(d.source.y+d.target.y)/2);
+    nodeEl.attr('transform',d=>`translate(${d.x},${d.y})`);
+  });
+
+  document.getElementById('btn-fit').onclick=()=>svg.transition().duration(500).call(zoom.transform,d3.zoomIdentity);
+  document.getElementById('btn-in').onclick =()=>svg.transition().duration(250).call(zoom.scaleBy,1.4);
+  document.getElementById('btn-out').onclick=()=>svg.transition().duration(250).call(zoom.scaleBy,0.7);
+
+  function drag(sim){
+    return d3.drag()
+      .on('start',e=>{if(!e.active)sim.alphaTarget(0.3).restart();e.subject.fx=e.subject.x;e.subject.fy=e.subject.y;})
+      .on('drag', e=>{e.subject.fx=e.x;e.subject.fy=e.y;})
+      .on('end',  e=>{if(!e.active)sim.alphaTarget(0);e.subject.fx=null;e.subject.fy=null;});
+  }
+}
+
+async function syncToVault(){
+  if(!currentGraph){alert('No diagram to sync.');return;}
+  const btn=document.getElementById('sync-btn'); btn.textContent='Syncing…';
+  try {
+    for(const node of currentGraph.nodes){
+      if(node.group==='pillar') continue;
+      const related=currentGraph.links
+        .filter(l=>{const s=typeof l.source==='object'?l.source.id:l.source;const t=typeof l.target==='object'?l.target.id:l.target;return s===node.id||t===node.id;})
+        .map(l=>{const s=typeof l.source==='object'?l.source.id:l.source;const t=typeof l.target==='object'?l.target.id:l.target;return s===node.id?t:s;});
+      await fetch('http://localhost:4000/save-note',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({title:node.id,content:`Pillar: [[${node.pillar}]]\nType: ${node.type}\n\nSource: "${node.fullText}"`,links:related})});
+    }
+    btn.textContent='Vault Synced!'; setTimeout(()=>btn.textContent='Commit to Vault',2500);
+  } catch(e){ btn.textContent='Sync Failed'; alert('Make sure bridge.js is running.'); }
+}
+
+function setLoaderText(t){document.getElementById('loader-msg').textContent=t;}
+function setLoader(html){document.getElementById('loader').innerHTML=html;}
+function hideLoader(){document.getElementById('loader').style.display='none';}
+
+init();
+</script>
+</body>
+</html>
