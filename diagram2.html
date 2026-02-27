@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Selah - Diagram</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  ::-webkit-scrollbar { display: none; }
+  * { -ms-overflow-style: none; scrollbar-width: none; }
+
+  :root {
+    --bg: #F5F2EB;
+    --text-dark: #322115;
+    --text-muted: #8C7B6E;
+    --card-border: #E2DFD8;
+
+    /* Pillar colors */
+    --c-self:          #4A3728;
+    --c-relationships: #7B5EA7;
+    --c-work:          #2E6B4F;
+    --c-health:        #C0392B;
+    --c-mind:          #1A6B8A;
+
+    /* Thought node */
+    --c-thought: #A89880;
+    --c-feeling: #C87C5A;
+  }
+
+  html, body {
+    height: 100%; width: 100%;
+    background: var(--bg);
+    font-family: 'Inter', sans-serif;
+    color: var(--text-dark);
+    overflow: hidden;
+  }
+
+  /* dot-grid background */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── NAV ── */
+  nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 48px;
+    background: rgba(245,242,235,0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+  }
+  .logo {
+    display: flex; align-items: center; gap: 12px;
+    font-size: 19px; font-weight: 400; color: var(--text-dark); text-decoration: none;
+  }
+  .logo img { width: 34px; height: 34px; object-fit: contain; mix-blend-mode: multiply; }
+  .nav-right { display: flex; align-items: center; gap: 28px; }
+  .sync-btn {
+    background: var(--text-dark); color: white; border: none;
+    border-radius: 100px; padding: 8px 20px;
+    font-size: 13px; font-family: 'Inter', sans-serif;
+    cursor: pointer; transition: opacity 0.2s;
+  }
+  .sync-btn:hover { opacity: 0.8; }
+  .nav-links { display: flex; gap: 28px; list-style: none; }
+  .nav-links a {
+    font-size: 14.5px; color: var(--text-dark);
+    text-decoration: none; opacity: 0.6; transition: opacity 0.15s;
+  }
+  .nav-links a:hover, .nav-links a.active { opacity: 1; font-weight: 500; }
+
+  /* ── CANVAS ── */
+  #canvas {
+    position: fixed; inset: 0; top: 64px; z-index: 1;
+    cursor: grab;
+  }
+  #canvas:active { cursor: grabbing; }
+
+  /* ── LOADER ── */
+  #loader {
+    position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    z-index: 50;
+  }
+  #loader img { width: 44px; height: 44px; mix-blend-mode: multiply; animation: spin 3s linear infinite; }
+  #loader p { font-size: 14px; color: var(--text-muted); letter-spacing: 0.02em; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── TOOLTIP ── */
+  #tooltip {
+    position: fixed; z-index: 200;
+    background: var(--text-dark); color: #F5F2EB;
+    font-size: 12.5px; line-height: 1.55;
+    padding: 9px 14px; border-radius: 10px;
+    max-width: 260px; pointer-events: none;
+    opacity: 0; transition: opacity 0.12s;
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* ── LEGEND ── */
+  #legend {
+    position: fixed; bottom: 28px; left: 44px;
+    display: none; flex-direction: column; gap: 7px;
+    z-index: 50; pointer-events: none;
+  }
+  .li {
+    display: flex; align-items: center; gap: 9px;
+    font-size: 11px; color: var(--text-muted); letter-spacing: 0.07em; text-transform: uppercase;
+  }
+  .li-dot { width: 9px; height: 9px; border-radius: 50%; }
+  .li-sep { width: 28px; height: 1px; background: var(--card-border); margin: 3px 0; }
+
+  /* ── CONTROLS ── */
+  #controls {
+    position: fixed; bottom: 28px; right: 44px;
+    display: none; flex-direction: column; gap: 6px;
+    z-index: 50;
+  }
+  .ctrl-btn {
+    width: 34px; height: 34px;
+    background: white; border: 1px solid var(--card-border);
+    border-radius: 8px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: var(--text-muted);
+    transition: background 0.15s, color 0.15s;
+    font-family: 'Inter', sans-serif;
+  }
+  .ctrl-btn:hover { background: var(--bg); color: var(--text-dark); }
+
+  /* SVG styles injected via JS for performance */
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="logo" href="landingPage.html">
+    <img src="logo" alt="Selah">
+    Selah
+  </a>
+  <div class="nav-right">
+    <button class="sync-btn" id="sync-btn" onclick="syncToVault()">Commit to Vault</button>
+    <ul class="nav-links">
+      <li><a href="plugins.html">Plugins</a></li>
+      <li><a href="diagram.html" class="active">Diagram</a></li>
+      <li><a href="notes.html">Notes</a></li>
+      <li><a href="analyze.html">Analyze</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div id="canvas">
+  <div id="loader">
+    <img src="logo" alt="">
+    <p id="loader-msg">Reading your conversation…</p>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<div id="legend">
+  <!-- pillars -->
+  <div class="li"><div class="li-dot" style="background:var(--c-self)"></div>Self</div>
+  <div class="li"><div class="li-dot" style="background:var(--c-relationships)"></div>Relationships</div>
+  <div class="li"><div class="li-dot" style="background:var(--c-work)"></div>Work / Purpose</div>
+  <div class="li"><div class="li-dot" style="background:var(--c-health)"></div>Health</div>
+  <div class="li"><div class="li-dot" style="background:var(--c-mind)"></div>Mind</div>
+  <div class="li-sep"></div>
+  <!-- thoughts -->
+  <div class="li"><div class="li-dot" style="background:var(--c-thought); opacity:0.7"></div>Thought</div>
+  <div class="li"><div class="li-dot" style="background:var(--c-feeling); opacity:0.7"></div>Feeling</div>
+</div>
+
+<div id="controls">
+  <button class="ctrl-btn" id="btn-fit" title="Fit to screen">⊡</button>
+  <button class="ctrl-btn" id="btn-in"  title="Zoom in">+</button>
+  <button class="ctrl-btn" id="btn-out" title="Zoom out">−</button>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+//  PILLARS — always present, never change
+// ─────────────────────────────────────────────
+const PILLARS = [
+  { id: 'Self',          group: 'pillar', color: '#4A3728', r: 22 },
+  { id: 'Relationships', group: 'pillar', color: '#7B5EA7', r: 22 },
+  { id: 'Work',          group: 'pillar', color: '#2E6B4F', r: 22 },
+  { id: 'Health',        group: 'pillar', color: '#C0392B', r: 22 },
+  { id: 'Mind',          group: 'pillar', color: '#1A6B8A', r: 22 },
+];
+const PILLAR_IDS = new Set(PILLARS.map(p => p.id));
+
+const PILLAR_COLOR = {
+  Self: '#4A3728', Relationships: '#7B5EA7',
+  Work: '#2E6B4F', Health: '#C0392B', Mind: '#1A6B8A',
+};
+
+// ─────────────────────────────────────────────
+//  LOAD CHAT
+// ─────────────────────────────────────────────
+function loadChat() {
+  try {
+    const db = JSON.parse(localStorage.getItem('selah_memory'));
+    if (!db?.activeChatId) return null;
+    const chat = db.chats.find(c => c.id === db.activeChatId);
+    return chat?.messages?.length ? chat : null;
+  } catch { return null; }
+}
+
+// ─────────────────────────────────────────────
+//  MAIN
+// ─────────────────────────────────────────────
+let currentGraph = null;
+let svgZoom = null;
+let svgRoot = null;
+
+async function init() {
+  const chat = loadChat();
+  if (!chat) {
+    setLoader(`<p style="color:var(--text-dark);max-width:280px;line-height:1.6;text-align:center;">No active chat.<br><a href="landingPage.html" style="color:var(--text-dark);text-decoration:underline;text-underline-offset:3px;">Go talk to Selah first →</a></p>`);
+    return;
+  }
+
+  const userMessages = chat.messages.filter(m => m.role === 'user').map(m => m.content.trim());
+  const fullConvo    = chat.messages.map(m => `${m.role === 'user' ? 'USER' : 'SELAH'}: ${m.content.trim()}`).join('\n');
+
+  setLoaderText('Mapping your inner world…');
+
+  const prompt = `You are a psychological mapper. Read this conversation and extract the person's thoughts and feelings as graph nodes, then connect them to the correct life pillars.
+
+CONVERSATION:
+${fullConvo}
+
+THE USER'S EXACT WORDS:
+${userMessages.map(m => `- "${m}"`).join('\n')}
+
+LIFE PILLARS (these already exist as nodes — do NOT include them in your nodes array):
+Self, Relationships, Work, Health, Mind
+
+YOUR TASK:
+1. Extract 6-12 "thought nodes" from what the user actually said. Each node is a short phrase (2-5 words) that captures a real thought or feeling expressed by the user.
+2. For each thought node, decide which ONE pillar it belongs to:
+   - Self → how they see or feel about themselves ("bad person", "angry with myself", "losing")
+   - Relationships → people, social dynamics, loneliness, connection
+   - Work → career, goals, tasks, achievement, winning, purpose
+   - Health → physical state, energy, exhaustion, body
+   - Mind → mental patterns, confusion, overwhelm, clarity, emotions
+3. Create links: each thought node links to its pillar. You may also add links BETWEEN thought nodes if they directly reinforce or cause each other (max 4 extra cross-links).
+
+RULES:
+- Node "id" must be a real phrase from the user's words. NOT category labels.
+- "type" is either "thought" or "feeling"
+- "pillar" must be exactly one of: Self, Relationships, Work, Health, Mind
+- "quote" is the exact user sentence it came from
+
+OUTPUT ONLY RAW JSON:
+{
+  "nodes": [
+    {"id": "short phrase", "type": "thought|feeling", "pillar": "Self|Relationships|Work|Health|Mind", "quote": "exact user sentence"}
+  ],
+  "extraLinks": [
+    {"source": "node id", "target": "node id", "label": "short verb"}
+  ]
+}`;
+
+  try {
+    const res = await fetch('http://localhost:11434/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'llama3.2:1b',
+        prompt,
+        stream: false,
+        format: 'json',
+        options: { temperature: 0.05, num_predict: 1200 }
+      })
+    });
+    if (!res.ok) throw new Error('Ollama offline');
+
+    const data = await res.json();
+    let clean = data.response.replace(/```json/gi,'').replace(/```/g,'').trim();
+    const ai = JSON.parse(clean);
+
+    if (!ai.nodes?.length) throw new Error('No nodes');
+
+    // ── Build full graph ──
+    // Nodes = pillars + thought nodes
+    const nodes = [
+      ...PILLARS.map(p => ({ ...p })),
+      ...ai.nodes.map(n => ({
+        id: n.id,
+        group: 'thought',
+        type: n.type || 'thought',
+        pillar: n.pillar,
+        quote: n.quote || '',
+        color: n.type === 'feeling' ? '#C87C5A' : '#A89880',
+        r: 7,
+      }))
+    ];
+
+    // Links = thought→pillar + extra cross-links
+    const nodeIds = new Set(nodes.map(n => n.id));
+    const links = [];
+    const seen = new Set();
+
+    ai.nodes.forEach(n => {
+      if (PILLAR_IDS.has(n.pillar)) {
+        const key = [n.id, n.pillar].sort().join('|||');
+        if (!seen.has(key)) { seen.add(key); links.push({ source: n.id, target: n.pillar, label: '', isPillarLink: true }); }
+      }
+    });
+
+    (ai.extraLinks || []).forEach(l => {
+      if (!nodeIds.has(l.source) || !nodeIds.has(l.target)) return;
+      if (l.source === l.target) return;
+      const key = [l.source, l.target].sort().join('|||');
+      if (!seen.has(key)) { seen.add(key); links.push({ source: l.source, target: l.target, label: l.label || '', isPillarLink: false }); }
+    });
+
+    currentGraph = { nodes, links };
+    hideLoader();
+    document.getElementById('legend').style.display   = 'flex';
+    document.getElementById('controls').style.display = 'flex';
+    drawGraph(currentGraph);
+
+  } catch (err) {
+    console.error(err);
+    setLoader(`<p style="color:var(--text-dark);">Couldn't build map.</p><p style="font-size:13px;opacity:0.6;margin-top:8px;">Check Ollama is running → refresh.</p>`);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  DRAW
+// ─────────────────────────────────────────────
+function drawGraph(graph) {
+  const W = window.innerWidth;
+  const H = window.innerHeight - 64;
+
+  d3.select('#canvas').selectAll('svg').remove();
+
+  const zoom = d3.zoom().scaleExtent([0.2, 6]).on('zoom', e => g.attr('transform', e.transform));
+  svgZoom = zoom;
+
+  const svg = d3.select('#canvas').append('svg')
+    .attr('width', W).attr('height', H)
+    .call(zoom);
+
+  svgRoot = svg;
+
+  const g = svg.append('g');
+
+  // Arrowhead marker (subtle)
+  svg.append('defs').append('marker')
+    .attr('id', 'arrow')
+    .attr('viewBox', '0 -4 8 8')
+    .attr('refX', 18).attr('refY', 0)
+    .attr('markerWidth', 6).attr('markerHeight', 6)
+    .attr('orient', 'auto')
+    .append('path')
+      .attr('d', 'M0,-4L8,0L0,4')
+      .attr('fill', '#D8D3CC');
+
+  // ── Simulation ──
+  // Pre-position pillars in a ring so they start spread out
+  const cx = W / 2, cy = H / 2;
+  const pillarR = Math.min(W, H) * 0.28;
+  graph.nodes.forEach((n, i) => {
+    if (n.group === 'pillar') {
+      const angle = (2 * Math.PI * PILLARS.findIndex(p => p.id === n.id)) / PILLARS.length - Math.PI / 2;
+      n.x = cx + pillarR * Math.cos(angle);
+      n.y = cy + pillarR * Math.sin(angle);
+    }
+  });
+
+  const sim = d3.forceSimulation(graph.nodes)
+    .force('link', d3.forceLink(graph.links).id(d => d.id)
+      .distance(d => d.isPillarLink ? 130 : 80)
+      .strength(d => d.isPillarLink ? 0.6 : 0.3))
+    .force('charge', d3.forceManyBody().strength(d => d.group === 'pillar' ? -600 : -180))
+    .force('collide', d3.forceCollide().radius(d => d.r + 20))
+    .force('center', d3.forceCenter(cx, cy).strength(0.05));
+
+  // Pin pillars gently (soft fix)
+  graph.nodes.forEach(n => {
+    if (n.group === 'pillar') { n.fx = n.x; n.fy = n.y; }
+  });
+  // Unpin after settling
+  setTimeout(() => {
+    graph.nodes.forEach(n => { if (n.group === 'pillar') { n.fx = null; n.fy = null; } });
+    sim.alpha(0.1).restart();
+  }, 1800);
+
+  // ── Links ──
+  const linkEl = g.append('g').attr('class','links')
+    .selectAll('line').data(graph.links).join('line')
+    .attr('stroke', d => {
+      if (d.isPillarLink) return PILLAR_COLOR[d.target?.id || d.target] || '#D8D3CC';
+      return '#C8C3BB';
+    })
+    .attr('stroke-width', d => d.isPillarLink ? 1.2 : 0.8)
+    .attr('stroke-opacity', d => d.isPillarLink ? 0.45 : 0.35)
+    .attr('stroke-dasharray', d => d.isPillarLink ? 'none' : '4 3');
+
+  // Link labels (only extra cross-links)
+  const linkLabelEl = g.append('g').attr('class','link-labels')
+    .selectAll('text').data(graph.links.filter(l => !l.isPillarLink && l.label)).join('text')
+    .text(d => d.label)
+    .attr('font-size', '9px')
+    .attr('font-family', 'Inter, sans-serif')
+    .attr('fill', '#B0A898')
+    .attr('text-anchor', 'middle')
+    .style('pointer-events', 'none');
+
+  // ── Nodes ──
+  const nodeEl = g.append('g').attr('class','nodes')
+    .selectAll('g').data(graph.nodes).join('g')
+    .call(drag(sim));
+
+  // Pillar glow ring
+  nodeEl.filter(d => d.group === 'pillar')
+    .append('circle')
+    .attr('r', d => d.r + 10)
+    .attr('fill', d => d.color)
+    .attr('opacity', 0.08);
+
+  // Main circle
+  const circles = nodeEl.append('circle')
+    .attr('r', d => d.r)
+    .attr('fill', d => d.color)
+    .attr('stroke', '#F5F2EB')
+    .attr('stroke-width', d => d.group === 'pillar' ? 3 : 2)
+    .style('cursor', 'pointer')
+    .style('filter', d => d.group === 'pillar' ? `drop-shadow(0 2px 8px ${d.color}55)` : 'none');
+
+  // Labels
+  nodeEl.append('text')
+    .attr('y', d => d.group === 'pillar' ? -(d.r + 10) : -(d.r + 6))
+    .attr('text-anchor', 'middle')
+    .attr('font-family', 'Inter, sans-serif')
+    .attr('font-size', d => d.group === 'pillar' ? '13px' : '11.5px')
+    .attr('font-weight', d => d.group === 'pillar' ? '500' : '400')
+    .attr('fill', d => d.group === 'pillar' ? d.color : '#6B5E52')
+    .attr('letter-spacing', d => d.group === 'pillar' ? '0.04em' : '0')
+    .style('pointer-events', 'none')
+    .each(function(d) {
+      const maxLen = d.group === 'pillar' ? 99 : 15;
+      const words = d.id.split(' ');
+      const lines = [];
+      let cur = '';
+      words.forEach(w => {
+        const test = cur ? cur + ' ' + w : w;
+        if (test.length > maxLen && cur) { lines.push(cur); cur = w; }
+        else cur = test;
+      });
+      if (cur) lines.push(cur);
+
+      if (lines.length === 1) {
+        d3.select(this).text(lines[0]);
+      } else {
+        const baseY = d.group === 'pillar' ? -(d.r + 14) : -(d.r + 6);
+        d3.select(this).attr('y', baseY);
+        lines.forEach((line, i) => {
+          d3.select(this).append('tspan')
+            .attr('x', 0).attr('dy', i === 0 ? '0' : '13')
+            .text(line);
+        });
+      }
+    });
+
+  // ── Hover ──
+  const tooltip = document.getElementById('tooltip');
+
+  const connectedTo = (d) => {
+    const s = new Set([d.id]);
+    graph.links.forEach(l => {
+      const sid = typeof l.source === 'object' ? l.source.id : l.source;
+      const tid = typeof l.target === 'object' ? l.target.id : l.target;
+      if (sid === d.id) s.add(tid);
+      if (tid === d.id) s.add(sid);
+    });
+    return s;
+  };
+
+  nodeEl
+    .on('mouseover', function(event, d) {
+      const conn = connectedTo(d);
+      nodeEl.transition().duration(160)
+        .style('opacity', o => conn.has(o.id) ? 1 : 0.1);
+      linkEl.transition().duration(160)
+        .style('opacity', l => {
+          const sid = typeof l.source === 'object' ? l.source.id : l.source;
+          const tid = typeof l.target === 'object' ? l.target.id : l.target;
+          return (sid === d.id || tid === d.id) ? 0.85 : 0.03;
+        });
+      linkLabelEl.transition().duration(160)
+        .style('opacity', l => {
+          const sid = typeof l.source === 'object' ? l.source.id : l.source;
+          const tid = typeof l.target === 'object' ? l.target.id : l.target;
+          return (sid === d.id || tid === d.id) ? 1 : 0;
+        });
+      d3.select(this).select('circle').transition().duration(160)
+        .attr('r', d.r * (d.group === 'pillar' ? 1.25 : 1.7));
+
+      if (d.quote) {
+        tooltip.textContent = `"${d.quote}"`;
+        tooltip.style.opacity = '1';
+        tooltip.style.left = (event.clientX + 16) + 'px';
+        tooltip.style.top  = (event.clientY - 10) + 'px';
+      } else if (d.group === 'pillar') {
+        const count = graph.links.filter(l => {
+          const sid = typeof l.source === 'object' ? l.source.id : l.source;
+          const tid = typeof l.target === 'object' ? l.target.id : l.target;
+          return sid === d.id || tid === d.id;
+        }).length;
+        tooltip.textContent = `${d.id} · ${count} connection${count !== 1 ? 's' : ''}`;
+        tooltip.style.opacity = '1';
+        tooltip.style.left = (event.clientX + 16) + 'px';
+        tooltip.style.top  = (event.clientY - 10) + 'px';
+      }
+    })
+    .on('mousemove', e => {
+      tooltip.style.left = (e.clientX + 16) + 'px';
+      tooltip.style.top  = (e.clientY - 10) + 'px';
+    })
+    .on('mouseout', function(_, d) {
+      nodeEl.transition().duration(160).style('opacity', 1);
+      linkEl.transition().duration(160)
+        .style('opacity', l => l.isPillarLink ? 0.45 : 0.35);
+      linkLabelEl.transition().duration(160).style('opacity', 1);
+      d3.select(this).select('circle').transition().duration(160).attr('r', d.r);
+      tooltip.style.opacity = '0';
+    });
+
+  // ── Tick ──
+  sim.on('tick', () => {
+    linkEl
+      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    linkLabelEl
+      .attr('x', d => (d.source.x + d.target.x) / 2)
+      .attr('y', d => (d.source.y + d.target.y) / 2);
+    nodeEl.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
+
+  // ── Controls ──
+  document.getElementById('btn-fit').onclick = () => {
+    svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity.translate(0,0).scale(1));
+  };
+  document.getElementById('btn-in').onclick = () => {
+    svg.transition().duration(250).call(zoom.scaleBy, 1.4);
+  };
+  document.getElementById('btn-out').onclick = () => {
+    svg.transition().duration(250).call(zoom.scaleBy, 0.7);
+  };
+
+  function drag(sim) {
+    return d3.drag()
+      .on('start', e => { if (!e.active) sim.alphaTarget(0.3).restart(); e.subject.fx = e.subject.x; e.subject.fy = e.subject.y; })
+      .on('drag',  e => { e.subject.fx = e.x; e.subject.fy = e.y; })
+      .on('end',   e => { if (!e.active) sim.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; });
+  }
+}
+
+// ─────────────────────────────────────────────
+//  VAULT SYNC
+// ─────────────────────────────────────────────
+async function syncToVault() {
+  if (!currentGraph) { alert('No diagram to sync.'); return; }
+  const btn = document.getElementById('sync-btn');
+  btn.textContent = 'Syncing…';
+  try {
+    for (const node of currentGraph.nodes) {
+      if (node.group === 'pillar') continue;
+      const related = currentGraph.links
+        .filter(l => {
+          const s = typeof l.source === 'object' ? l.source.id : l.source;
+          const t = typeof l.target === 'object' ? l.target.id : l.target;
+          return s === node.id || t === node.id;
+        })
+        .map(l => {
+          const s = typeof l.source === 'object' ? l.source.id : l.source;
+          const t = typeof l.target === 'object' ? l.target.id : l.target;
+          return s === node.id ? t : s;
+        });
+      await fetch('http://localhost:4000/save-note', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: node.id,
+          content: `Pillar: [[${node.pillar}]]\nType: ${node.type}\n\nSource: "${node.quote}"`,
+          links: related
+        })
+      });
+    }
+    btn.textContent = 'Vault Synced!';
+    setTimeout(() => btn.textContent = 'Commit to Vault', 2500);
+  } catch (e) {
+    btn.textContent = 'Sync Failed';
+    alert('Make sure bridge.js is running.');
+  }
+}
+
+// ─────────────────────────────────────────────
+//  HELPERS
+// ─────────────────────────────────────────────
+function setLoaderText(t) {
+  document.getElementById('loader-msg').textContent = t;
+}
+function setLoader(html) {
+  const l = document.getElementById('loader');
+  l.innerHTML = html;
+}
+function hideLoader() {
+  document.getElementById('loader').style.display = 'none';
+}
+
+init();
+</script>
+</body>
+</html>
