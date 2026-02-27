@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Selah - Analyze</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  ::-webkit-scrollbar { display: none; width: 0; background: transparent; }
+  * { -ms-overflow-style: none; scrollbar-width: none; }
+
+  :root {
+    --bg: #F5F2EB;
+    --text-dark: #322115;
+    --text-muted: #8C7B6E;
+    --input-bg: #FFFFFF;
+    --input-stroke: #E2DFD8;
+    --pill-border: #D8D3CC;
+    --card-bg: #FFFFFF;
+    --card-border: #E8E4D9;
+    --accent: #322115;
+    --accent-warm: #A0522D;
+    --tag-self: #E8DDD3;
+    --tag-problem: #F2E8E8;
+    --tag-insight: #E8EDE3;
+    --tag-desire: #EDE8F2;
+    --tag-action: #F5F0DC;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    font-family: 'Inter', sans-serif;
+    color: var(--text-dark);
+    overflow-x: hidden;
+  }
+
+  /* ── NAV ── */
+  nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 48px;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+    background: var(--bg);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 19px;
+    font-weight: 400;
+    color: var(--text-dark);
+    text-decoration: none;
+  }
+  .logo img { width: 36px; height: 36px; object-fit: contain; mix-blend-mode: multiply; }
+
+  .nav-links { display: flex; gap: 32px; list-style: none; }
+  .nav-links a {
+    font-size: 15px; font-weight: 400; color: var(--text-dark);
+    text-decoration: none; opacity: 0.7; transition: opacity 0.15s;
+  }
+  .nav-links a:hover { opacity: 1; }
+  .nav-links a.active { opacity: 1; font-weight: 500; }
+
+  /* ── PAGE ── */
+  .page {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 48px 24px 120px;
+  }
+
+  .page-header {
+    margin-bottom: 40px;
+  }
+
+  .page-label {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  .page-title {
+    font-size: 32px;
+    font-weight: 300;
+    letter-spacing: -0.5px;
+    color: var(--text-dark);
+    margin-bottom: 8px;
+  }
+
+  .page-subtitle {
+    font-size: 15px;
+    color: var(--text-muted);
+    font-weight: 400;
+  }
+
+  /* ── EMPTY STATE ── */
+  #empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    text-align: center;
+    gap: 16px;
+  }
+
+  #empty-state img { width: 48px; opacity: 0.3; mix-blend-mode: multiply; }
+  #empty-state p { color: var(--text-muted); font-size: 15px; }
+  #empty-state a {
+    font-size: 14px;
+    color: var(--text-dark);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  /* ── SECTION ── */
+  .section { margin-bottom: 48px; }
+  .section-title {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--card-border);
+  }
+
+  /* ── SUMMARY CARD ── */
+  .summary-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 28px 32px;
+    line-height: 1.7;
+    font-size: 15.5px;
+    color: var(--text-dark);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .summary-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px; height: 100%;
+    background: var(--text-dark);
+    border-radius: 3px 0 0 3px;
+  }
+
+  /* ── STATS ROW ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 48px;
+  }
+
+  .stat-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    transition: box-shadow 0.2s;
+  }
+  .stat-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.04); }
+
+  .stat-num {
+    font-size: 30px;
+    font-weight: 300;
+    letter-spacing: -1px;
+    color: var(--text-dark);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  /* ── NODES GRID ── */
+  .nodes-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .node-tag {
+    border-radius: 100px;
+    padding: 7px 16px;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text-dark);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid transparent;
+  }
+  .node-tag .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+  .node-tag.self    { background: var(--tag-self);    border-color: #D8CEBF; }
+  .node-tag.problem { background: var(--tag-problem); border-color: #E8D0D0; }
+  .node-tag.insight { background: var(--tag-insight); border-color: #CDDBC5; }
+  .node-tag.desire  { background: var(--tag-desire);  border-color: #D5CBE8; }
+  .node-tag.action  { background: var(--tag-action);  border-color: #E8DCA8; }
+
+  .dot.self    { background: #9B8473; }
+  .dot.problem { background: #C87070; }
+  .dot.insight { background: #6B9E60; }
+  .dot.desire  { background: #8B70C8; }
+  .dot.action  { background: #C8A030; }
+
+  /* ── PATTERNS ── */
+  .patterns-list { display: flex; flex-direction: column; gap: 12px; }
+
+  .pattern-item {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 18px 24px;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    transition: box-shadow 0.2s;
+  }
+  .pattern-item:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.04); }
+
+  .pattern-icon {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-size: 17px;
+    background: var(--bg);
+  }
+
+  .pattern-text { flex: 1; }
+  .pattern-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .pattern-desc { font-size: 13.5px; color: var(--text-muted); line-height: 1.5; }
+
+  /* ── REFRAME CARDS ── */
+  .reframes-list { display: flex; flex-direction: column; gap: 12px; }
+
+  .reframe-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    transition: box-shadow 0.2s;
+  }
+  .reframe-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.04); }
+
+  .reframe-label {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .reframe-text {
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--text-dark);
+  }
+
+  /* ── TENSION MAP ── */
+  .tension-list { display: flex; flex-direction: column; gap: 10px; }
+
+  .tension-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    font-size: 14px;
+  }
+
+  .tension-a { font-weight: 500; flex: 1; text-align: right; }
+  .tension-sep {
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 4px 10px;
+    background: var(--bg);
+    border-radius: 100px;
+    white-space: nowrap;
+    letter-spacing: 0.05em;
+  }
+  .tension-b { flex: 1; }
+
+  /* ── ACTION ITEMS ── */
+  .actions-list { display: flex; flex-direction: column; gap: 10px; }
+
+  .action-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+    user-select: none;
+  }
+  .action-item:hover { background: #FAFAF7; }
+  .action-item.done { opacity: 0.5; }
+  .action-item.done .action-text { text-decoration: line-through; }
+
+  .action-check {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 1.5px solid var(--pill-border);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .action-item.done .action-check {
+    background: var(--text-dark);
+    border-color: var(--text-dark);
+  }
+  .action-item.done .action-check::after {
+    content: '';
+    width: 5px; height: 8px;
+    border: 1.5px solid white;
+    border-top: none; border-left: none;
+    transform: rotate(45deg) translateY(-1px);
+    display: block;
+  }
+
+  .action-text { font-size: 14px; flex: 1; color: var(--text-dark); }
+  .action-type {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+
+  /* ── ANALYZE BTN ── */
+  .analyze-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--text-dark);
+    color: white;
+    border: none;
+    border-radius: 100px;
+    padding: 12px 24px;
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    margin-bottom: 48px;
+  }
+  .analyze-btn:hover { opacity: 0.85; }
+  .analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── LOADING ── */
+  .skeleton {
+    background: linear-gradient(90deg, #EDE9E0 25%, #E4E0D6 50%, #EDE9E0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 8px;
+    height: 16px;
+    margin-bottom: 10px;
+  }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+  .fade-in { animation: fadeUp 0.4s ease forwards; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="logo" href="landingPage.html">
+    <img src="logo" alt="Selah Logo">
+    Selah
+  </a>
+  <ul class="nav-links">
+    <li><a href="plugins.html">Plugins</a></li>
+    <li><a href="diagram.html">Diagram</a></li>
+    <li><a href="notes.html">Notes</a></li>
+    <li><a href="analyze.html" class="active">Analyze</a></li>
+  </ul>
+</nav>
+
+<div class="page">
+  <div class="page-header">
+    <div class="page-label">Dissection Report</div>
+    <h1 class="page-title" id="page-title">Analyze</h1>
+    <p class="page-subtitle" id="page-subtitle">Select a chat to analyze its patterns, themes, and tensions.</p>
+  </div>
+
+  <div id="empty-state">
+    <img src="logo" alt="Selah">
+    <p>No active chat found.</p>
+    <a href="landingPage.html">Go back and have a dissection →</a>
+  </div>
+
+  <div id="content" style="display:none;">
+    <button class="analyze-btn" id="analyze-btn" onclick="runAnalysis()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      Run Analysis
+    </button>
+
+    <!-- Stats -->
+    <div class="stats-row" id="stats-row" style="display:none;"></div>
+
+    <!-- Psychological summary -->
+    <div class="section" id="section-summary" style="display:none;">
+      <div class="section-title">Core Dissection</div>
+      <div class="summary-card" id="summary-text"></div>
+    </div>
+
+    <!-- Nodes from diagram -->
+    <div class="section" id="section-nodes" style="display:none;">
+      <div class="section-title">Mapped Concepts</div>
+      <div class="nodes-grid" id="nodes-grid"></div>
+    </div>
+
+    <!-- Patterns -->
+    <div class="section" id="section-patterns" style="display:none;">
+      <div class="section-title">Recurring Patterns</div>
+      <div class="patterns-list" id="patterns-list"></div>
+    </div>
+
+    <!-- Tensions -->
+    <div class="section" id="section-tensions" style="display:none;">
+      <div class="section-title">Internal Tensions</div>
+      <div class="tension-list" id="tension-list"></div>
+    </div>
+
+    <!-- Reframes -->
+    <div class="section" id="section-reframes" style="display:none;">
+      <div class="section-title">Reframes</div>
+      <div class="reframes-list" id="reframes-list"></div>
+    </div>
+
+    <!-- Actions -->
+    <div class="section" id="section-actions" style="display:none;">
+      <div class="section-title">Action Levers</div>
+      <div class="actions-list" id="actions-list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── LOAD CHAT DATA ──
+  let chatData = null;
+  let analysisResult = null;
+
+  function loadChatData() {
+    try {
+      const db = JSON.parse(localStorage.getItem('selah_memory'));
+      if (!db || !db.activeChatId) return null;
+      const chat = db.chats.find(c => c.id === db.activeChatId);
+      return chat && chat.messages && chat.messages.length > 0 ? chat : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function init() {
+    chatData = loadChatData();
+
+    if (!chatData) {
+      document.getElementById('empty-state').style.display = 'flex';
+      document.getElementById('content').style.display = 'none';
+      return;
+    }
+
+    document.getElementById('empty-state').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+    document.getElementById('page-title').textContent = chatData.title || 'Analyze';
+    document.getElementById('page-subtitle').textContent =
+      `${chatData.messages.length} messages · dissected by Selah`;
+  }
+
+  // ── RUN ANALYSIS ──
+  async function runAnalysis() {
+    if (!chatData) return;
+
+    const btn = document.getElementById('analyze-btn');
+    btn.disabled = true;
+    btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Analyzing...`;
+
+    const conversationText = chatData.messages
+      .map(m => `${m.role.toUpperCase()}: ${m.content}`)
+      .join('\n');
+
+    const systemPrompt = `You are a precise psychological analyst. Analyze this conversation and return ONLY valid JSON with no markdown, no explanation.
+
+Output this exact structure:
+{
+  "summary": "2-3 sentence precise dissection of the core psychological state and root tension",
+  "stats": {
+    "messages": number,
+    "dominant_emotion": "one word",
+    "energy_level": "low|medium|high",
+    "clarity": "1-10 score as number"
+  },
+  "patterns": [
+    {"icon": "emoji", "title": "Pattern Name", "desc": "1 sentence description"},
+    {"icon": "emoji", "title": "Pattern Name", "desc": "1 sentence description"},
+    {"icon": "emoji", "title": "Pattern Name", "desc": "1 sentence description"}
+  ],
+  "tensions": [
+    {"a": "concept", "relation": "vs", "b": "concept"},
+    {"a": "concept", "relation": "blocks", "b": "concept"}
+  ],
+  "reframes": [
+    {"label": "Perspective Shift", "text": "reframed insight"},
+    {"label": "Root Cause", "text": "what's really going on"},
+    {"label": "The Unlock", "text": "what changes everything"}
+  ],
+  "actions": [
+    {"text": "Specific doable action", "type": "immediate"},
+    {"text": "Specific doable action", "type": "habit"},
+    {"text": "Specific doable action", "type": "mindset"}
+  ],
+  "nodes": [
+    {"id": "concept", "group": "self|problem|insight|desire|action"},
+    {"id": "concept", "group": "self|problem|insight|desire|action"}
+  ]
+}
+
+Keep everything SHORT and PRECISE. No fluff. No filler.`;
+
+    try {
+      const response = await fetch('http://localhost:11434/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'llama3.2:1b',
+          prompt: conversationText,
+          system: systemPrompt,
+          stream: false,
+          format: 'json',
+          options: { temperature: 0.2, num_predict: 1200 }
+        })
+      });
+
+      const data = await response.json();
+      let clean = data.response.replace(/```json/gi, '').replace(/```/g, '').trim();
+      analysisResult = JSON.parse(clean);
+      renderAnalysis(analysisResult);
+
+    } catch (err) {
+      console.error("Analysis failed:", err);
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Retry Analysis`;
+      alert("Couldn't connect to Ollama. Make sure it's running.");
+    }
+  }
+
+  function renderAnalysis(r) {
+    const btn = document.getElementById('analyze-btn');
+    btn.innerHTML = `✓ Analysis Complete`;
+    btn.style.background = '#4a7c59';
+
+    const msgCount = chatData.messages.length;
+    const userMsgs = chatData.messages.filter(m => m.role === 'user').length;
+
+    // Stats
+    const statsRow = document.getElementById('stats-row');
+    statsRow.style.display = 'grid';
+    statsRow.innerHTML = `
+      <div class="stat-card fade-in">
+        <span class="stat-num">${msgCount}</span>
+        <span class="stat-label">Messages</span>
+      </div>
+      <div class="stat-card fade-in" style="animation-delay:0.05s">
+        <span class="stat-num">${r.stats?.dominant_emotion || '—'}</span>
+        <span class="stat-label">Core Emotion</span>
+      </div>
+      <div class="stat-card fade-in" style="animation-delay:0.1s">
+        <span class="stat-num">${r.stats?.energy_level || '—'}</span>
+        <span class="stat-label">Energy</span>
+      </div>
+      <div class="stat-card fade-in" style="animation-delay:0.15s">
+        <span class="stat-num">${r.stats?.clarity || '—'}<span style="font-size:14px">/10</span></span>
+        <span class="stat-label">Clarity</span>
+      </div>
+    `;
+
+    // Summary
+    if (r.summary) {
+      document.getElementById('section-summary').style.display = 'block';
+      document.getElementById('summary-text').textContent = r.summary;
+      document.getElementById('summary-text').classList.add('fade-in');
+    }
+
+    // Nodes
+    if (r.nodes && r.nodes.length > 0) {
+      document.getElementById('section-nodes').style.display = 'block';
+      const grid = document.getElementById('nodes-grid');
+      grid.innerHTML = '';
+      r.nodes.forEach((n, i) => {
+        const tag = document.createElement('span');
+        tag.className = `node-tag ${n.group} fade-in`;
+        tag.style.animationDelay = `${i * 0.04}s`;
+        tag.innerHTML = `<span class="dot ${n.group}"></span>${n.id}`;
+        grid.appendChild(tag);
+      });
+    }
+
+    // Patterns
+    if (r.patterns && r.patterns.length > 0) {
+      document.getElementById('section-patterns').style.display = 'block';
+      const list = document.getElementById('patterns-list');
+      list.innerHTML = '';
+      r.patterns.forEach((p, i) => {
+        list.innerHTML += `
+          <div class="pattern-item fade-in" style="animation-delay:${i*0.06}s">
+            <div class="pattern-icon">${p.icon || '○'}</div>
+            <div class="pattern-text">
+              <div class="pattern-title">${p.title}</div>
+              <div class="pattern-desc">${p.desc}</div>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    // Tensions
+    if (r.tensions && r.tensions.length > 0) {
+      document.getElementById('section-tensions').style.display = 'block';
+      const list = document.getElementById('tension-list');
+      list.innerHTML = '';
+      r.tensions.forEach((t, i) => {
+        list.innerHTML += `
+          <div class="tension-item fade-in" style="animation-delay:${i*0.06}s">
+            <span class="tension-a">${t.a}</span>
+            <span class="tension-sep">${t.relation || 'vs'}</span>
+            <span class="tension-b">${t.b}</span>
+          </div>
+        `;
+      });
+    }
+
+    // Reframes
+    if (r.reframes && r.reframes.length > 0) {
+      document.getElementById('section-reframes').style.display = 'block';
+      const list = document.getElementById('reframes-list');
+      list.innerHTML = '';
+      r.reframes.forEach((rf, i) => {
+        list.innerHTML += `
+          <div class="reframe-card fade-in" style="animation-delay:${i*0.06}s">
+            <div class="reframe-label">${rf.label}</div>
+            <div class="reframe-text">${rf.text}</div>
+          </div>
+        `;
+      });
+    }
+
+    // Actions
+    if (r.actions && r.actions.length > 0) {
+      document.getElementById('section-actions').style.display = 'block';
+      const list = document.getElementById('actions-list');
+      list.innerHTML = '';
+      r.actions.forEach((a, i) => {
+        const div = document.createElement('div');
+        div.className = `action-item fade-in`;
+        div.style.animationDelay = `${i * 0.06}s`;
+        div.innerHTML = `
+          <div class="action-check"></div>
+          <span class="action-text">${a.text}</span>
+          <span class="action-type">${a.type}</span>
+        `;
+        div.addEventListener('click', () => div.classList.toggle('done'));
+        list.appendChild(div);
+      });
+    }
+
+    // Scroll to stats
+    document.getElementById('stats-row').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  init();
+</script>
+</body>
+</html>
