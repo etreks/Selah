@@ -1,0 +1,14 @@
+{
+  "activeChatId": "chat_1708871900000",
+  "chats": [
+    {
+      "id": "chat_1708871900000",
+      "title": "Courage vs. Creativity",
+      "updatedAt": "2026-02-25T18:58:29Z",
+      "messages": [
+        {"role": "user", "content": "I am courageous and creative."},
+        {"role": "ai", "content": "Is your courage rooted in being true to yourself?"}
+      ]
+    }
+  ]
+}
